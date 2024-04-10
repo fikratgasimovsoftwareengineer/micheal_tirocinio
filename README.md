@@ -32,3 +32,11 @@ far capire bene cosa si sta eseguendo e capirne la logica dietro.
 Nella cartella ci sono i file jupyter consegnati dal professore per ciascuna
 sessione del corso e testare nel suo stesso ambiente i codici.
 Il file 07 è il test di fine argomento.
+
+### PyTorch Basics
+I file python presenti nella cartella sono appunti presi durante le lezioni
+per testare il codice illustrato dal professore, sono presenti commenti per
+far capire bene cosa si sta eseguendo e capirne la logica dietro.
+Nella cartella ci sono i file jupyter consegnati dal professore per ciascuna
+sessione del corso e testare nel suo stesso ambiente i codici.
+Il file 02 è il test di fine argomento.
