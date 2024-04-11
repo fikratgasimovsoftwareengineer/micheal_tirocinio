@@ -40,3 +40,8 @@ far capire bene cosa si sta eseguendo e capirne la logica dietro.
 Nella cartella ci sono i file jupyter consegnati dal professore per ciascuna
 sessione del corso e testare nel suo stesso ambiente i codici.
 Il file 02 è il test di fine argomento.
+
+### Machine Learning Concepts
+La lezione di solo teoria è stata riassunta negli appunti presi nel file .docx
+omonimo. 
+Non c'erano esercizi.
