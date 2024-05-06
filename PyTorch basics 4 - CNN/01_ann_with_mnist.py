@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import numpy as np
-import pandas as pd
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 from torchvision.utils import make_grid
