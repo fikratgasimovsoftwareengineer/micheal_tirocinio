@@ -16,10 +16,10 @@ import time
 # MNIST è un dataset di numeri scritti a mano
 transform = transforms.ToTensor()
 # Scegliamo come e dove inserire le immagini di training e test
-train_data = datasets.MNIST(root='../PYTORCH_NOTEBOOKS/Data', train=True,
-                            download=True, transform=transform)
-test_data = datasets.MNIST(root='../PYTORCH_NOTEBOOKS/Data', train=False,
-                            download=True, transform=transform)
+train_data = datasets.MNIST(root='.../Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data',
+                            train=True, download=True, transform=transform)
+test_data = datasets.MNIST(root='.../Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data',
+                           train=False, download=True, transform=transform)
 print(train_data, test_data)
 print(type(train_data))
 print(type(test_data))
