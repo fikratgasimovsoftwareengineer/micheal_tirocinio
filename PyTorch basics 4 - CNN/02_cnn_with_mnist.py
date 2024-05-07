@@ -3,16 +3,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-from torchvision.utils import make_grid
 import numpy as np
-import pandas as pd
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
+import time
 
 transform = transforms.ToTensor()
-train_data = datasets.MNIST(root='.../Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data',
+train_data = datasets.MNIST(root='/home/michel/Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data',
                             train=True, download=True, transform=transform)
-test_data = datasets.MNIST(root='.../Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data',
+test_data = datasets.MNIST(root='/home/michel/Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data',
                            train=False, download=True, transform=transform)
 print(train_data, test_data)
 train_loader = DataLoader(train_data, batch_size=10, shuffle=True)
@@ -55,7 +54,7 @@ x.view(-1, 16*5*5) # 1, 400
 
 
 # Creiamo una classe
-class ConvolutionalNetwork(nn.module):
+class ConvolutionalNetwork(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(1, 6, 3, 1)
@@ -75,3 +74,82 @@ class ConvolutionalNetwork(nn.module):
         X = F.relu(self.fc2(X))
         X = self.fc3(X)
         return F.log_softmax(X, dim=1)
+
+torch.manual_seed(42)
+model = ConvolutionalNetwork()
+print(model)
+# Vediamo rispetto ai 100k caratteri della ANN quanti parametri usa CNN
+for param in model.parameters():
+    # Circa 60k, quasi metà molto meglio
+    print(param.numel())
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+start_time = time.time()
+# Variabili tracker, non necessarie ma comode
+epochs = 5
+train_losses = []
+test_losses = []
+train_correct = []
+test_correct = []
+# For loop per le epoch
+for i in range(epochs):
+    trn_corr = 0
+    tst_corr = 0
+    for b, (X_train, y_train) in enumerate(train_loader):
+        b += 1
+        # Visto che è una CNN non serve il flatten perchè accetta dati 2D
+        y_pred = model(X_train)
+        loss = criterion(y_pred, y_train)
+        predicted = torch.max(y_pred.data, 1)[1]
+        # Si fa la somma tra i true (1) e i false (0)
+        batch_corr = (predicted==y_train).sum()
+        trn_corr += batch_corr
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        if b&600 == 0:
+            print(f'Epoch: {i+1} Batch: {b} Loss: {loss.item()}')
+    train_losses.append(loss.item())
+    train_correct.append(trn_corr)
+    with torch.no_grad():
+        for b, (X_test, y_test) in enumerate(test_loader):
+            y_val = model(X_test)
+            predicted = torch.max(y_val.data, 1)[1]
+            tst_corr += (predicted==y_test).sum()
+    loss = criterion(y_val, y_test)
+    test_losses.append(loss.item())
+    test_correct.append(tst_corr)
+current_time = time.time()
+total = current_time - start_time
+print(f'Training took {total/60} minutes')
+
+
+
+plt.plot(train_losses, label='train loss')
+plt.plot(test_losses, label='test loss')
+plt.title('Loss at epoch')
+plt.legend()
+plt.show()
+plt.plot([t/600 for t in train_correct], label='train accuracy')
+plt.plot([t/100 for t in test_correct], label='test accuracy')
+plt.title('Accuracy at the end of each epoch')
+plt.legend()
+plt.show()
+test_load_all = DataLoader(test_data, batch_size=10000, shuffle=False)
+with torch.no_grad():
+    correct = 0
+    for X_test, y_test in test_load_all:
+        y_val = model(X_test)
+        predicted = torch.max(y_val, 1)[1]
+        correct += (predicted==y_test).sum()
+    print(correct.item()/len(test_data))
+np.set_printoptions(formatter=dict(int=lambda  x: f'{x:4}')) # formatter
+print(np.arange(10).reshape(1, 10))
+print(confusion_matrix(predicted.view(-1), y_test.view(-1)))
+# Passiamo una immagine al modello, scegliamo un indice arbitrario
+plt.imshow(test_data[2019][0].reshape(28, 28))
+plt.show()
+model.eval()
+with torch.no_grad():
+    new_pred = model(test_data[2019][0].view(1, 1, 28, 28))
+    print(new_pred.argmax())
