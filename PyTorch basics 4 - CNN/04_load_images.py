@@ -1,15 +1,7 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
-from torchvision.utils import make_grid
+from torchvision import transforms
 import numpy as np
 import pandas as pd
-import seaborn as sn
-from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
-import time
 import os
 from PIL import Image
 import warnings
