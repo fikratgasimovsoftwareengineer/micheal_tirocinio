@@ -73,6 +73,7 @@ train_losses = []
 test_losses = []
 train_correct = []
 test_correct = []
+# For loop per le epoch
 for i in range(epochs):
     trn_corr = 0
     tst_corr = 0

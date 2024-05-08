@@ -102,6 +102,7 @@ for i in range(epochs):
         # Istanziamo il modello
         y_pred = model(X_train)
         loss = criterion(y_pred, y_train)
+        # Contiamo il numero delle previsioni corrette
         predicted = torch.max(y_pred.data, 1)[1]
         # Si fa la somma tra i true (1) e i false (0)
         batch_corr = (predicted==y_train).sum()
