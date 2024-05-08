@@ -79,7 +79,70 @@ print(type(im), im.shape) # colori, altezza, base
 # le vuole: altezza, base, colori
 # Quindi cambiamo l'ordine degl'indici
 plt.imshow(np.transpose(im.numpy(), (1, 2, 0)))
+# plt.show()
 # Vediamo l'immagine in formato tensor, sono da 0 a 1 i pixel
 # i numeri si posso convertire nel formato del RGB da 1 a 255
 # semplicemente moltiplicando per 255 e viceversa se vogliamo da 0 a 1
+print(im[:,0 , 0])
+print(np.array((90, 95, 98)) / 255)
+# E se vogliamo ridimensionarla?
+transform = transforms.Compose([
+    # Ridimensioniamo: altezza, base
+    # Ovviamente è anche possibile stretchare le immagini
+    transforms.Resize((250, 250)),
+
+    # Si può eseguire il cosidetto center crop, ossia
+    # si prende un quadrato centrale dell'immagine per il
+    # lato specificato, nel caso 250x250 dal centro
+    # Nel caso di immagini centrate può essere comodo per
+    # avere tutte le immagini con la stessa grandezza
+    # può aiutare fare un ridimensionamento e poi il CenterCrop
+    transforms.CenterCrop(250),
+    transforms.ToTensor()
+])
+im = transform(dog)
+plt.imshow(np.transpose(im.numpy(), (1, 2, 0)))
+# plt.show()
+# Facciamo delle operazioni per modificare le immagini
+transform = transforms.Compose([
+    # Passiamo una percentuale di successo di ruotare orizzontalmente
+    # da 0 a 1 (0% - 100%)
+    # transforms.RandomHorizontalFlip(p=1),
+
+    # Facciamo una rotazione casuale, il primo parametro è di quanti gradi
+    # girerà da un lato casuale in un range da 0 gradi a quelli desiderati
+    transforms.RandomRotation(30),
+    transforms.ToTensor()
+])
+im = transform(dog)
+plt.imshow(np.transpose(im.numpy(), (1, 2, 0)))
+# plt.show()
+# Ovviamente è possibile usare più metodi insieme
+# basta usare prima il Compose method
+
+# Ora se vogliamo usare reti già allenate dovremmo allenarle con
+# immagini già normalizzate allo stesso modo, per questo
+# ci sono dei valori comodi e fissi usati da tanti
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    # I valori passati sono usati in tantissimi training
+    # e c'è un motivo specifico per il quale sono comodi
+    # e molto efficenti, ovviamente sono tre per l'RGB
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+])
+im = transform(dog)
+plt.imshow(np.transpose(im.numpy(), (1, 2, 0)))
+# Ci sarà un warning perchè alcuni numeri non sono validi per il grafico
+# a cause del mean e std inseriti
+# plt.show()
+# L'immagine avrà dei valori negativi in alcuni punti
 print(im)
+# Per risolvere facciamo la normalizzazione inversa
+inv_normalize = transforms.Normalize(
+    mean=[-0.485/0.229, -0.456/0.224, -0.406/0.225],
+    std=[1/0.229, 1/0.224, 1/0.225]
+)
+im_inv = inv_normalize(im)
+plt.figure(figsize=(12,4))
+plt.imshow(np.transpose(im_inv.numpy(), (1, 2, 0)))
+plt.show()
