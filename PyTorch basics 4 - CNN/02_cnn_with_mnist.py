@@ -24,7 +24,7 @@ test_loader = DataLoader(test_data, batch_size=10, shuffle=False)
 conv1 = nn.Conv2d(1, 6, 3, 1)
 # Visto che l'immagine nel primo layer passa per 6 filtri, poi per
 # il pooling e infine al secondo layer, per questo il secondo layer
-# ha il canale d'entra con 6, la grandezza dei filtri e lo stride
+# ha il canale d'entrata con 6, la grandezza dei filtri e lo stride
 # devono rimanere uguali
 conv2 = nn.Conv2d(6, 16, 3, 1)
 for i, (X_train, y_train) in enumerate(train_data):
@@ -95,25 +95,32 @@ test_correct = []
 for i in range(epochs):
     trn_corr = 0
     tst_corr = 0
+    # Eseguiamo il training delle batch
     for b, (X_train, y_train) in enumerate(train_loader):
         b += 1
         # Visto che è una CNN non serve il flatten perchè accetta dati 2D
+        # Istanziamo il modello
         y_pred = model(X_train)
         loss = criterion(y_pred, y_train)
         predicted = torch.max(y_pred.data, 1)[1]
         # Si fa la somma tra i true (1) e i false (0)
         batch_corr = (predicted==y_train).sum()
         trn_corr += batch_corr
+        # Aggiorniamo i parametri
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        # Stampiamo i risultati a interim
         if b&600 == 0:
             print(f'Epoch: {i+1} Batch: {b} Loss: {loss.item()}')
     train_losses.append(loss.item())
     train_correct.append(trn_corr)
+    # Eseguiamo i testing batches
     with torch.no_grad():
         for b, (X_test, y_test) in enumerate(test_loader):
+            # Istanziamo il modello
             y_val = model(X_test)
+            # Contiamo il numero delle previsioni corrette
             predicted = torch.max(y_val.data, 1)[1]
             tst_corr += (predicted==y_test).sum()
     loss = criterion(y_val, y_test)
