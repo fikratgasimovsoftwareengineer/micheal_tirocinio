@@ -28,7 +28,7 @@ plt.show()
 # Definiamo una funzione che spezzi in batches i dati dei dataset
 # ws = windowsize
 def input_data(seq, ws):
-    # Facciamo una lista di tuple
+    # Facciamo una lista di tuple, con una sequenza e una previsione
     out = [] # ([0, 1, 2, 3], [4]), ([1, 2, 3, 4], [5]) ...
     L = len(seq)
     # Visto che non possiamo fare previsioni su tutto il train
@@ -43,5 +43,6 @@ def input_data(seq, ws):
 # Il valore è arbitrario
 window_size = 40
 train_data = input_data(train_set, window_size)
-print(len(train_data)) # 0-799 = 800 / 800-40 = 760 - 40 = 720
-
+print(len(train_data)) # 0-799 = 800 - 40 = 760 - 40 = 720
+print(train_data[0])
+print(train_data[1])
