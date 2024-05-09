@@ -46,3 +46,32 @@ train_data = input_data(train_set, window_size)
 print(len(train_data)) # 0-799 = 800 - 40 = 760 - 40 = 720
 print(train_data[0])
 print(train_data[1])
+
+
+
+# Definiamo una classe per LSTM
+class LSTM(nn.Module):
+    def __init__(self, input_size=1, hidden_size=50, out_size=1):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.lstm = nn.LSTM(input_size, hidden_size)
+        self.linear = nn.Linear(hidden_size, out_size)
+        self.hidden = (torch.zeros(1, 1, hidden_size), torch.zeros(1, 1, hidden_size))
+
+    def forward(self, seq):
+        lstm_out, self.hidden = self.lstm(seq.view(len(seq), 1, -1), self.hidden)
+        pred = self.linear(lstm_out.view(len(seq), -1))
+        # In questo caso vogliamo che LSTM stampi solo la previsione
+        return pred[-1]
+
+torch.manual_seed(42)
+model = LSTM()
+# Visto che usiamo valori continui non usiamo la cross entropy loss
+# usiamo il mean square error loss
+criterion = nn.MSELoss()
+# Per l'RNN Adam non è indicato, conviene usare SGD (stocastic gradient descent)
+optimizer = torch.optim.SGD(model.pararameters(), lr=0.01)
+print(model)
+for p in model.parameters():
+    # Circa 10k
+    print(p.numel())
