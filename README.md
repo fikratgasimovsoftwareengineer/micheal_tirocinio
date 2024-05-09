@@ -58,7 +58,7 @@ Nella cartella ci sono i file jupyter consegnati dal professore per ciascuna
 sessione del corso e testare nel suo stesso ambiente i codici.
 Per vedere i modelli creati visualizzare la cartella su drive del 9 maggio.
 
-### RNN - Recurrent Neural Network - IN CORSO
+### RNN - Recurrent Neural Network
 I file python presenti nella cartella sono appunti presi durante le lezioni
 per testare il codice illustrato dal professore, sono presenti commenti per
 far capire bene cosa si sta eseguendo e capirne la logica dietro.
