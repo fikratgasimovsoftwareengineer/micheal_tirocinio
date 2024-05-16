@@ -1,5 +1,5 @@
 """
-00. Pytorch Fundamentals
+01. Pytorch Fundamentals
 
 Resource notebook: https://www.learnpytorch.io/00_pytorch_fundamentals/
 
