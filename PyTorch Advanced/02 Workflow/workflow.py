@@ -16,6 +16,7 @@ what_were_covering = {1: 'data (prepare and load)',
 import torch
 from torch import nn # contains all pytorch building blocks for neural networks
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 # Check pytorch version
 print(torch.__version__)
@@ -159,7 +160,7 @@ When we pass data trought our model, it's going to run it through the forward() 
 with torch.inference_mode(): # a better .no_grad()
     y_preds = model_0(X_test)
 print(y_preds)
-plot_predictions(predictions=y_preds)
+# plot_predictions(predictions=y_preds)
 
 """
 3. Train model
@@ -175,15 +176,162 @@ Things we need to train:
 to the ideal outputs, lower is better.
 * Optimizer: takes the loss of the model and adjusts the model's parameters
 (weights & bias) to improve the loss function
+- Inside the optimizer you'll often have to set two parameters:
+    * params - the model parameters you'd like to optimize, for example:
+    params=model_0.parameters
+    * lr (learning rate) - the learning rate is a hyperparameter that defines
+    how big/small the optimizer changes the parameters with each step
+    (a small lr results in small changes, a large lr results in large changes)
 
+hyperparameters - we data scientist set them
+parameters - the neural network will set and modify them
 And specifically for pytorch we need:
 * A training loop
 * A testing loop
 """
 # Checkout our model's parameters
-print(model_0.state_dict())
+print(model_0.state_dict()) # OrderedDict([('weights', tensor([0.8823])), ('bias', tensor([0.9150]))])
 # Setup a loss function
 loss_fn = nn.L1Loss()
 # Setup a optimizer (stocasthic gradient descent)
 optimizer = torch.optim.SGD(params=model_0.parameters(),
                             lr=0.01) # learning rate = possibly the most important hyperparameter you can set
+
+"""
+Q: Which loss function and optimizer should i use?
+A: This will be problem specific. But with experience you'll get an idea of
+what works and doesn't in particular problem set
+For example, for a regression problem (like ours), a loss of function of
+nn.L1Loss() (MAE, mean absolute error) and a optimizer like torch.optimi.SGD() will suffice
+But for classification problem like classifying whtever a photo is of a dog
+or a cat, you'll likely want to use a loss function of nn.BCELoss() (binary cross entropy loss)
+
+
+
+Building a training (and testing) loop in pytorch
+A couple of things we need in a training loop:
+0. Loop through the data
+1. Forward pass (this involves data moving through our model's forward())
+to make predictions on data - also called "forward propagation"
+2. Calculate the loss (compare forward prediction to ground truth label)
+3. Optimizer zero grad
+4. Loss backward - move backwards through the network to calculate the gradients
+of each parameters of our model respect to the loss (backpropagation)
+5. Optimizer step - use the optimizer to adjust our model's parameters to try and
+improve the loss (gradient descent)
+
+
+
+Training
+"""
+torch.manual_seed(42)
+# An epoch is one loop through the data, this is a hyperparameter because we set it
+epochs = 101 # 86 is when stops learn
+# Track different values
+epoch_count = []
+loss_values = []
+test_loss_values = []
+# 0. Loop through the data
+for epoch in range(epochs):
+    # Set the model to training mode
+    model_0.train() # train mode in pytorch sets all parameters that require gradients to require gradients
+
+    # 1. Forward pass
+    y_pred = model_0(X_train)
+
+    # 2. Calculate the loss
+    loss = loss_fn(y_pred, y_train)
+    # print(f'Loss: {loss}')
+
+    # 3. Optimizer zero grad
+    optimizer.zero_grad()
+
+    # 4. Perform backprogation on the loss with respect to the parameters of the model
+    loss.backward()
+
+    # 5. Step the optimizer (perform gradient descent)
+    optimizer.step()
+    # by default how the optimizer changes will accumulate through the loop,
+    # so we have to zero them above in step 3 for the next iteration of the loop
+
+    """
+    Testing
+    """
+    model_0.eval() # turns off different settings in the model not needed for evaluation/testing (dropout/batch norm layers)
+    with torch.inference_mode(): # turn off gradient tracking & a couple of more things
+        # 1. Do the forward pass
+        test_pred = model_0(X_test)
+
+        # 2. Calculate the loss
+        test_loss = loss_fn(test_pred, y_test)
+
+    # Print out what's happening
+    if epoch % 10 == 0:
+        epoch_count.append(epoch)
+        loss_values.append(loss.item())
+        test_loss_values.append(test_loss.item())
+        print(f'Epoch: {epoch} | Loss: {loss} | Test loss: {test_loss}')
+        # Print out model state_dict()
+        print(model_0.state_dict())
+
+# Plot loss curve
+plt.plot(epoch_count, loss_values, label='Train loss')
+plt.plot(epoch_count, test_loss_values, label='Test loss')
+plt.title('Training and test loss curves')
+plt.ylabel('Loss')
+plt.xlabel('Epochs')
+plt.legend()
+plt.show()
+with torch.inference_mode():
+    y_preds_new = model_0(X_test)
+# plot_predictions(predictions=y_preds_new)
+
+"""
+Saving a model in Pytorch
+There are three main methods for saving and loading models in pytorch
+1. torch.save() - allows you save a pytorch object in python pickle format
+2. torch.load() - allows you to load a saved pytorch obejct
+3. torch.nn.Module.load_state_dict() - this allows to load a model's saved state dictionary
+"""
+# Saving our pytorch model
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'workflow_model_0.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state_dict
+print(f'Saving model to: {MODEL_SAVE_PATH}')
+torch.save(obj=model_0.state_dict(), f=MODEL_SAVE_PATH)
+
+"""
+Loading a Pytorch model
+Since we saver out model's state_dict() rather than the entire model, we'll create a new instante of our
+model class and load the saved state_dict() into that
+"""
+# To load a saved state_dict we have to instantiate a new instance of our model class
+loaded_model = LinearRegressionModel()
+# Load the saved state_dict of model_0 (this will update the new instance with updated parameters)
+print(loaded_model.state_dict()) # a new model with random values
+loaded_model.load_state_dict(torch.load(f=MODEL_SAVE_PATH))
+print(loaded_model.state_dict()) # now this is the model we saved
+# Make some predictions with our loaded model
+loaded_model.eval()
+with torch.inference_mode():
+    loaded_model_preds = loaded_model(X_test)
+# Compare loaded model preds with original model preds
+print(y_preds == loaded_model_preds)
+# Make some model preds (troubleshooting)
+model_0.eval()
+with torch.inference_mode():
+    y_preds = model_0(X_test)
+print(y_preds == loaded_model_preds)
+
+"""
+Create device-agnostic code
+This means if we've got access to a GPU, our code will use it (for potentially faster computing)
+If no GPU is available, the code will default to using CPU
+"""
+# Setup device agnostic code
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f'Using device: {device}')
