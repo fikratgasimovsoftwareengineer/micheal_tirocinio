@@ -335,3 +335,171 @@ If no GPU is available, the code will default to using CPU
 # Setup device agnostic code
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'Using device: {device}')
+
+"""
+6.1. Data
+"""
+# Create some data using the linear regression formula of y = weight * X + bias
+weight = 0.7
+bias = 0.3
+# Create range values
+start = 0
+end = 1
+step = 0.02
+# Create X and y (features and labels)
+X = torch.arange(start, end, step).unsqueeze(dim=1) # without unsqueeze, errors will pop up
+y = weight * X + bias
+print(X[:10], y[:10])
+# Split data
+train_split = int(0.8 * len(X))
+X_train, y_train = X[:train_split], y[:train_split]
+X_test, y_test = X[train_split:], y[train_split:]
+len(X_train), len(y_train), len(X_test), len(y_test)
+def plot_predictions(train_data=X_train,
+                     train_labels=y_train,
+                     test_data=X_test,
+                     test_labels=y_test,
+                     predictions=None):
+    """
+    Plots training data, test data and compares predictions.
+    """
+    plt.figure(figsize=(10, 7))
+
+    # Plot training data in blue
+    plt.scatter(train_data, train_labels, c="b", s=4, label="Training data")
+
+    # Plot test data in green
+    plt.scatter(test_data, test_labels, c="g", s=4, label="Testing data")
+
+    # Are there predictions?
+    if predictions is not None:
+        # Plot the predictions if they exist
+        plt.scatter(test_data, predictions, c="r", s=4, label="Predictions")
+
+    # Show the legend
+    plt.legend(prop={"size": 14})
+
+# Plot the data
+# Note: if you don't have the plot_predictions() function loaded, this will error
+plot_predictions(X_train, y_train, X_test, y_test)
+
+"""
+6.2 Building a PyTorch Linear model
+"""
+# Create a linear model by subclassing nn.Module
+class LinearRegressionModelV2(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Use nn.Linear() for creating the model parameters / also called: linear transform, probing layer, fully connected layer, dense layer
+        self.linear_layer = nn.Linear(in_features=1,
+                                      out_features=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.linear_layer(x)
+
+# Set the manual seed
+torch.manual_seed(42)
+model_1 = LinearRegressionModelV2()
+model_1, model_1.state_dict()
+print(model_1.state_dict())
+print(X_train[:5], y_train[:5])
+# Check the model current device
+print(next(model_1.parameters()).device)
+# Set the model to use the target device
+model_1.to(device)
+print(next(model_1.parameters()).device)
+print(model_1.state_dict())
+
+"""
+6.3 Training
+For training we need:
+* Loss function
+* Optimizer
+* Training loop
+* Testing loop
+"""
+# Setup loss function
+loss_fn = nn.L1Loss() # same as MAE
+# Setup our optimizer
+optimizer = torch.optim.SGD(params=model_1.parameters(),
+                            lr=0.01)
+# Let's write a training loop
+torch.manual_seed(42)
+epochs = 200
+# Put data on the target device (device agnostic code for data)
+X_train = X_train.to(device)
+y_train = y_train.to(device)
+X_test = X_test.to(device)
+y_test = y_test.to(device)
+for epoch in range(epochs):
+  model_1.train()
+
+  # 1. Forward pass
+  y_pred = model_1(X_train)
+
+  # 2. Calculate the loss
+  loss = loss_fn(y_pred, y_train)
+
+  # 3. Optimizer zero grad
+  optimizer.zero_grad()
+
+  # 4. Perform backpropagation
+  loss.backward()
+
+  # 5. Optimizer step
+  optimizer.step()
+
+  ### Testing
+  model_1.eval()
+  with torch.inference_mode():
+    test_pred = model_1(X_test)
+    test_loss = loss_fn(test_pred, y_test)
+
+  # Print out what's happening
+  if epoch % 10 == 0:
+    print(f"Epoch: {epoch} | Loss: {loss} | Test loss: {test_loss}")
+
+print(model_1.state_dict())
+print(weight, bias)
+
+"""
+6.4 Making and evaluating predictions
+"""
+# Turn model into evaluation mode
+model_1.eval()
+# Make predictions on the test data
+with torch.inference_mode():
+  y_preds = model_1(X_test)
+
+print(y_preds)
+# Check out our model predictions visually
+plot_predictions(predictions=y_preds.cpu())
+
+"""
+6.5 Saving & loading a trained model
+"""
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'workflow_model_1.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state dict
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(obj=model_1.state_dict(),
+           f=MODEL_SAVE_PATH)
+print(model_1.state_dict())
+# Load a PyTorch model
+# Create a new instance of lienar regression model V2
+loaded_model_1 = LinearRegressionModelV2()
+# Load the saved model_1 state_dict
+loaded_model_1.load_state_dict(torch.load(MODEL_SAVE_PATH))
+# Put the loaded model to device
+loaded_model_1.to(device)
+print(next(loaded_model_1.parameters()).device)
+loaded_model_1.state_dict()
+# Evaluate loaded model
+loaded_model_1.eval()
+with torch.inference_mode():
+  loaded_model_1_preds = loaded_model_1(X_test)
+print(y_preds == loaded_model_1_preds)
