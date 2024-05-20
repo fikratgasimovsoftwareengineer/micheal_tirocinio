@@ -10,11 +10,12 @@ Ask a question: https://github.com/mrdbourke/pytorch-deep-learning/discussions
 """
 import torch
 from torch import nn
-import sklearn
 from sklearn.datasets import make_circles
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import matplotlib.pyplot as plt
+import requests
+from pathlib import Path
 
 """
 1. Make classification data and get it ready
@@ -32,11 +33,13 @@ circles = pd.DataFrame({'X1': X[:, 0],
                         'label': y})
 print(circles)
 # Visualize x 3
+"""
 plt.scatter(x=X[:, 0],
             y=X[:, 1],
             c=y,
             cmap=plt.cm.RdYlBu)
 # plt.show()
+"""
 """
 Note: the data we're working with is often referred to as a toy dataset, a dataset
 that is small enough to experiment but still sizeable enough to
@@ -147,12 +150,11 @@ loss_fn = nn.BCEWithLogitsLoss() # = sigmoid activation function built-in, basic
 optimizer = torch.optim.SGD(params=model_0.parameters(),
                             lr=0.1)
 # Calculate accuracy - what percentage does our model get right
-"""
-def accuracy_fn(y_ true, y_pred):
-    correct = torch.ep(y_true, y_pred).sum().item()
+def accuracy_fn(y_true, y_pred):
+    correct = torch.eq(y_true, y_pred).sum().item()
     acc = (correct/len(y_pred)) * 100
     return acc
-"""
+
 """
 3. Train model
 To train our model, we're going to need to build a training loop:
@@ -202,3 +204,383 @@ print(y_preds)
 """
 3.2 Building a training and test loop
 """
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+# Set number of epochs
+epochs = 100
+# Put train data to target device
+X_train, y_train = X_train.to(device), y_train.to(device)
+X_test, y_test = X_test.to(device), y_test.to(device)
+# Build training and evaluation loop
+for epoch in range(epochs):
+    # Training
+    model_0.train()
+
+    # 1. Forward pass
+    y_logits = model_0(X_train).squeeze()
+    y_pred = torch.round(torch.sigmoid(y_logits)) # turns logits -> pred probs -> pred label
+
+    # 2. Calculate loss/accuracy
+    # loss = loss_fn(torch.sigmoid(y_logits), y_train) # nn.BCELoss expects prediction probabilities as input
+    loss = loss_fn(y_logits, y_train) # nn.BCEWithLogitsLoss expects raw logits as input
+    acc = accuracy_fn(y_true=y_train, y_pred=y_pred)
+
+    # 3. Optimizer zero grad
+    optimizer.zero_grad()
+
+    # 4. Loss backward (backpropagation)
+    loss.backward()
+
+    # 5. Gradient descent (optimizer step)
+    optimizer.step()
+
+    # Testing
+    model_0.eval()
+    with torch.inference_mode():
+        # 1. Forward pass
+        test_logits = model_0(X_test).squeeze()
+        test_pred = torch.round(torch.sigmoid(test_logits))
+
+        # 2. Calculate the test loss
+        test_loss = loss_fn(test_logits, y_test)
+        test_acc = accuracy_fn(y_true=y_test, y_pred=test_pred)
+    # Print out what's happening
+    if epoch % 10 == 0:
+        print(f'Epoch: {epoch} | Loss: {loss:.5f}  '
+              f'Acc: {acc:.2f}% | Test loss: {test_loss:.5f}  '
+              f'Test acc: {test_acc:.2f}%')
+
+"""
+4. Make predictions and evaluate the model
+From the metrics it looks like the model isn't learning...
+So to inspect it let's make some predictions and make them visual
+So like always, visualize! 
+To do so we're going to import a function called plot_decision_boundary()
+https://github.com/mrdbourke/pytorch-deep-learning/blob/main/helper_functions.py
+"""
+# Download helper functions from Learn PyTorch repo (if it's not already downloaded)
+if Path('helper_functions.py').is_file():
+    print('helper_functions.py already exists, skipping download')
+else:
+    print('Download helper_functions.py')
+    request = requests.get('https://raw.githubusercontent.com/mrdbourke/pytorch-deep-learning/main/helper_functions.py')
+    with open('helper_functions.py', 'wb') as f:
+        f.write(request.content)
+from helper_functions import plot_predictions, plot_decision_boundary
+# Plot decision boundary of the model
+"""
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.title('Train')
+plot_decision_boundary(model_0, X_train, y_train)
+plt.subplot(1, 2, 2)
+plt.title('Test')
+plot_decision_boundary(model_0, X_test, y_test)
+# plt.show()
+"""
+"""
+5. Improve a model (from a model perspective)
+* Add more layers - give the model more chances to learn about patterns in the data
+* Add more hidden units - go from 5 hidden units to 10 hidden units
+* Fit for longer
+* Changing the activation function
+* Change the learning rate
+* Change the loss function
+These options are all from a model's perspective because they deal directly with
+the model rather than the data
+And because these options are all values we can change, they are referred
+as "hyperparameters"
+Let's try and improve our model by, one at the time:
+* Adding more hidden units: 5 -> 10
+* Increase the number of layers: 2 -> 3
+* Increase the number of epochs: 100 -> 1000
+"""
+class CircleModelV1(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layer_1 = nn.Linear(in_features=2,
+                                 out_features=10)
+        self.layer_2 = nn.Linear(in_features=10,
+                                 out_features=10)
+        self.layer_3 = nn.Linear(in_features=10,
+                                 out_features=1)
+
+    def forward(self, x):
+        # z = self.layer_1(x)
+        # z = self.layer_2(z)
+        # z = self.layer_3(z)
+        # return z
+        return self.layer_3(self.layer_2(self.layer_1(x))) # this way of writing operations leverages speed ups where possible behind scenes
+
+model_1 = CircleModelV1().to(device)
+print(model_1)
+# Create a loss function
+loss_fn = nn.BCEWithLogitsLoss()
+# Create an optimizer
+optimizer = torch.optim.SGD(params=model_1.parameters(),
+                            lr=0.1)
+# Write a training and evaluation loop for model_1
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+# Train for longer
+epochs = 1000
+# Put data on the target device
+X_train, y_train = X_train.to(device), y_train.to(device)
+X_test, y_test = X_test.to(device), y_test.to(device)
+for epoch in range(epochs):
+    # Training
+    model_1.train()
+
+    # 1. Forward pass
+    y_logits = model_1(X_train).squeeze()
+    y_pred = torch.round(torch.sigmoid(y_logits))  # turns logits -> pred probs -> pred label
+
+    # 2. Calculate loss/accuracy
+    # loss = loss_fn(torch.sigmoid(y_logits), y_train) # nn.BCELoss expects prediction probabilities as input
+    loss = loss_fn(y_logits, y_train)  # nn.BCEWithLogitsLoss expects raw logits as input
+    acc = accuracy_fn(y_true=y_train, y_pred=y_pred)
+
+    # 3. Optimizer zero grad
+    optimizer.zero_grad()
+
+    # 4. Loss backward (backpropagation)
+    loss.backward()
+
+    # 5. Gradient descent (optimizer step)
+    optimizer.step()
+
+    # Testing
+    model_1.eval()
+    with torch.inference_mode():
+        # 1. Forward pass
+        test_logits = model_1(X_test).squeeze()
+        test_pred = torch.round(torch.sigmoid(test_logits))
+
+        # 2. Calculate the test loss
+        test_loss = loss_fn(test_logits, y_test)
+        test_acc = accuracy_fn(y_true=y_test, y_pred=test_pred)
+    # Print out what's happening
+    if epoch % 100 == 0:
+        print(f'Epoch: {epoch} | '
+              f'Loss: {loss:.5f}  Acc: {acc:.2f}% | '
+              f'Test loss: {test_loss:.5f}  Test acc: {test_acc:.2f}%')
+
+# Plot decision boundary of the model
+"""
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.title('Train')
+plot_decision_boundary(model_1, X_train, y_train)
+plt.subplot(1, 2, 2)
+plt.title('Test')
+plot_decision_boundary(model_1, X_test, y_test)
+# plt.show()
+"""
+"""
+5.1 Preparing data to see if our model can fit a straight line
+One way to troubleshoot to a larger problem is to test out a smaller problem
+"""
+# Create scome data (same as notebook 01)
+weight = 0.7
+bias = 0.3
+start = 0
+end = 1
+step = 0.01
+# Create data
+X_regression = torch.arange(start, end, step).unsqueeze(dim=1)
+y_regression = weight * X_regression + bias # linear regression formula (without epsilon)
+# Check the data
+print(len(X_regression))
+print(X_regression[:5], y_regression[:5])
+# Create train and test splits
+train_split = int(0.8 * len(X_regression))
+X_train_regression, y_train_regression = X_regression[:train_split], y_regression[:train_split]
+X_test_regression, y_test_regression = X_regression[train_split:], y_regression[train_split:]
+# Check the lenght of each
+print(len(X_train_regression), len(X_test_regression), len(y_train_regression), len(y_test_regression))
+"""
+plot_predictions(train_data=X_train_regression,
+                 train_labels=y_train_regression,
+                 test_data=X_test_regression,
+                 test_labels=y_test_regression)
+# plt.show()
+"""
+print(X_train_regression[:10], y_train_regression[:10])
+# One feature for one label
+"""
+5.2 Adjust model_1 to fit a straight line
+"""
+# Same architecture as model_1 (but using nn.Sequential())
+model_2 = nn.Sequential(
+    nn.Linear(in_features=1, out_features=10),
+    nn.Linear(in_features=10, out_features=10),
+    nn.Linear(in_features=10, out_features=1),).to(device)
+print(model_2)
+# Loss and optimizer
+loss_fn = nn.L1Loss()
+optimizer = torch.optim.SGD(params=model_2.parameters(), lr=0.01)
+# Train the model
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+# Set number of epochs
+epochs = 1000
+# Put the data on the target device
+X_train_regression, y_train_regression = X_train_regression.to(device), y_train_regression.to(device)
+X_test_regression, y_test_regression = X_test_regression.to(device), y_test_regression.to(device)
+# Training
+for epoch in range(epochs):
+    # Training
+    y_pred = model_2(X_train_regression)
+    loss = loss_fn(y_pred, y_train_regression)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+    # Testing
+    model_2.eval()
+    with torch.inference_mode():
+        test_pred = model_2(X_test_regression)
+        test_loss = loss_fn(test_pred, y_test_regression)
+    if epoch % 100 == 0:
+        print(f'Epoch: {epoch} | '
+              f'Loss: {loss:.5f}  | '
+              f'Test loss: {test_loss:.5f}')
+
+# Turn on evaluation mode
+model_2.eval()
+# Make predictions (inference)
+with torch.inference_mode():
+    y_preds = model_2(X_test_regression)
+# Plot data and predictions, check if they are on cpu
+"""
+plot_predictions(train_data=X_train_regression,
+                 train_labels=y_train_regression,
+                 test_data=X_test_regression,
+                 test_labels=y_test_regression,
+                 predictions=y_preds)
+# plt.show()
+"""
+"""
+6. The missing piece: non-linearity
+What patterns could you draw if you were given an infinite amount of a straight
+and non-straight lines?
+Or in machine learning terms, an infinite (but really it is finite) of linear and
+non-linear function?
+
+
+
+6.1 Recreating non-linear data (red and blue circles)
+"""
+# Make and plot data
+n_samples = 1000
+X, y = make_circles(n_samples,
+                    noise=0.03,
+                    random_state=42)
+# plt.scatter(X[:, 0], X[:, 1], c=y, cmap=plt.cm.RdYlBu)
+# plt.show()
+# Convert data to tensors
+X = torch.from_numpy(X).type(torch.float)
+y = torch.from_numpy(y).type(torch.float)
+# and then to train and test splits
+X_train, X_test, y_train, y_test = train_test_split(X, y,
+                                                    test_size=0.2,
+                                                    random_state=42)
+print(X_train[:5], y_train[:5])
+
+"""
+6.2 Building a model with non-linearity
+* Linear = straight line
+* Non-linear = non-straight lines
+
+Artificial Neural Networks are a large combination of linear (straight) and
+non-linear (non-straight) functions which are potentially able
+to find patterns in data
+"""
+# Build a model with non-linear activation functions
+class CircleModelV2(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layer_1 = nn.Linear(in_features=2,
+                                 out_features=10)
+        self.layer_2 = nn.Linear(in_features=10,
+                                 out_features=10)
+        self.layer_3 = nn.Linear(in_features=10,
+                                 out_features=1)
+        self.relu = nn.ReLU() # relu is a non-linear activation function
+
+    def forward(self, x):
+        # Where should we put our non-linear activation functions? Between layers
+        return self.layer_3(self.relu(self.layer_2(self.relu(self.layer_1(x)))))
+
+model_3 = CircleModelV2()
+print(model_3)
+
+# Setup loss and optimizer
+loss_fn = nn.BCEWithLogitsLoss()
+optimizer = torch.optim.SGD(model_3.parameters(), lr=0.1)
+
+"""
+6.3 Training a model with non linearity
+"""
+# Random seeds
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+# Put all data on target device
+X_train, y_train = X_train.to(device), y_train.to(device)
+X_test, y_test = X_test.to(device), y_test.to(device)
+# Loop through data
+epochs = 1500
+for epoch in range(epochs):
+    # Training
+    model_3.train()
+
+    # 1. Forward pass
+    y_logits = model_3(X_train).squeeze()
+    y_pred = torch.round(torch.sigmoid(y_logits))  # turns logits -> pred probs -> pred label
+
+    # 2. Calculate loss/accuracy
+    loss = loss_fn(y_logits, y_train)  # nn.BCEWithLogitsLoss expects raw logits as input
+    acc = accuracy_fn(y_true=y_train, y_pred=y_pred)
+
+    # 3. Optimizer zero grad
+    optimizer.zero_grad()
+
+    # 4. Loss backward (backpropagation)
+    loss.backward()
+
+    # 5. Gradient descent (optimizer step)
+    optimizer.step()
+
+    # Testing
+    model_3.eval()
+    with torch.inference_mode():
+        # 1. Forward pass
+        test_logits = model_3(X_test).squeeze()
+        test_pred = torch.round(torch.sigmoid(test_logits))
+
+        # 2. Calculate the test loss
+        test_loss = loss_fn(test_logits, y_test)
+        test_acc = accuracy_fn(y_true=y_test, y_pred=test_pred)
+    # Print out what's happening
+    if epoch % 100 == 0:
+        print(f'Epoch: {epoch} | '
+              f'Loss: {loss:.5f}  Acc: {acc:.2f}% | '
+              f'Test loss: {test_loss:.5f}  Test acc: {test_acc:.2f}%')
+
+"""
+6.4 Evaluating a model trained with non-linear activation functions
+"""
+# Makes predictions
+model_3.eval()
+with torch.inference_mode():
+    y_preds = torch.round(torch.sigmoid(model_3(X_test))).squeeze()
+print(y_preds[:10], y_test[:10])
+# Plot decision boundaries
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.title('Train model 1')
+plot_decision_boundary(model_1, X_train, y_train) # model_1 = NOT non-linearity
+plt.subplot(1, 2, 2)
+plt.title('Test model 3')
+plot_decision_boundary(model_3, X_test, y_test) # model_3 = HAS non-linearity
+plt.show()
