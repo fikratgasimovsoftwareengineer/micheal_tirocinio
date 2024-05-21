@@ -211,21 +211,15 @@ X_test, y_test = X_test.to(device), y_test.to(device)
 for epoch in range(epochs):
     ## Training
     model_1.train()
-    # 1. forward pass
+
     y_logits = model_1(X_train)
     y_pred = torch.softmax(y_logits, dim=1).argmax(dim=1)
 
-    # 2. calculate the loss
     loss = loss_fn(y_logits, y_train)
     acc = acc_fn(y_pred, y_train)
 
-    # 3. optimizer zero grad
     optimizer.zero_grad()
-
-    # 4. loss backwards
     loss.backward()
-
-    # 5. optimizer step step step
     optimizer.step()
 
     ## Testing

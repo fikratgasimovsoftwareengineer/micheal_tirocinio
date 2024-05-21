@@ -810,7 +810,7 @@ plt.show()
 * Confusion matrix
 * Classification report
 """
-# Setup metric
+# Setup the metric
 torchmetrics_accuracy = Accuracy('multiclass', num_classes=4).to(device)
 # Calculate accuracy
 print(torchmetrics_accuracy(y_preds, y_blob_test))
