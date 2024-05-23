@@ -15,7 +15,8 @@ import requests
 from pathlib import Path
 from timeit import default_timer as timer
 from tqdm.auto import tqdm
-print(torch.__version__)
+import pandas as pd
+import random
 print(torch.__version__)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -236,6 +237,8 @@ for epoch in tqdm(range(epochs)):
     # Add a loop to through the training batches
     for batch, (X, y) in enumerate(train_dataloader):
         model_0.train()
+        # Make our data device agnostic
+        X, y = X.to(device), y.to(device)
         # 1. Forward pass
         y_pred = model_0(X)
 
@@ -264,6 +267,8 @@ for epoch in tqdm(range(epochs)):
     model_0.eval()
     with torch.inference_mode():
         for X_test, y_test in test_dataloader:
+            # Make our data device agnostic
+            X_test, y_test = X_test.to(device), y_test.to(device)
             # 1. Forward pass
             test_pred = model_0(X_test)
 
@@ -527,16 +532,31 @@ class FashionMNISTModelV2(nn.Module):
             nn.MaxPool2d(kernel_size=2))
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(in_features=hidden_units*0, # there is a trick to calculate this
+            nn.Linear(in_features=hidden_units*7*7, # there is a trick to calculate this
                       out_features=output_shape))
 
     def forward(self, x):
-        return self.classifier(self.conv_block_2(self.conv_block_1(x)))
+        x = self.conv_block_1(x)
+        # print(f'Output shape of conv_block_1: {x.shape}')
+        x = self.conv_block_2(x)
+        # print(f'Output shape of conv_block_2: {x.shape}') # see the shape for the in feature in classifier
+        x = self.classifier(x)
+        # print(f'Output shape of classifier: {x.shape}')
+        return x
 
 torch.manual_seed(42)
 model_2 = FashionMNISTModelV2(input_shape=1, # color channel
                               hidden_units=10,
                               output_shape=len(class_names)).to(device)
+plt.imshow(image.squeeze(), cmap='gray')
+rand_image_tensor = torch.randn(1, 28, 28)
+print(rand_image_tensor.shape)
+# model_2(rand_image_tensor) -> shape mismatch
+model_2(rand_image_tensor.unsqueeze(0).to(device))
+
+
+# Pass image through model
+# model_2(image) -> shape mismatch
 
 """
 7.1 Stepping through nn.Conv2d
@@ -583,3 +603,74 @@ max_pool_layer = nn.MaxPool2d(kernel_size=2)
 max_pool_tensor = max_pool_layer(random_tensor)
 print(f'\nMax pool tensor:\n{max_pool_tensor}')
 print(f'Max pool tensor shape: {max_pool_tensor.shape}')
+
+"""
+7.3 Setup a loss function and optimizer for model_2
+"""
+# Setup loss function/eval metrics/optimizer
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(params=model_2.parameters(),
+                            lr=0.1)
+
+"""
+7.4 Training and testing model_2 using our training and test functions
+"""
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+# Measure time
+train_time_start_model_2 = timer()
+# Train and test model
+for epoch in tqdm(range(epochs)):
+    print(f'Epoch: {epoch}\n------')
+    train_step(model=model_2,
+               data_loader=train_dataloader,
+               loss_fn=loss_fn,
+               optimizer=optimizer,
+               accuracy_fn=accuracy_fn,
+               device=device)
+    test_step(model=model_2,
+               data_loader=test_dataloader,
+               loss_fn=loss_fn,
+               accuracy_fn=accuracy_fn,
+               device=device)
+
+train_time_end_model_2 = timer()
+total_train_time_model_2 = print_train_time(train_time_start_model_2,
+                                            train_time_end_model_2,
+                                            device)
+# Get model_2 results
+model_2_result = eval_model(model=model_2,
+                            data_loader=test_dataloader,
+                            loss_fn=loss_fn,
+                            accuracy_fn=accuracy_fn,
+                            device=device)
+
+"""
+8. Compare model results and trainig time
+"""
+compare_results = pd.DataFrame([model_0_result,
+                               model_1_result,
+                               model_2_result])
+# Add training time to results comparison
+compare_results['training time'] = [total_train_time_model_0,
+                                    total_train_time_model_1,
+                                    total_train_time_model_2] # with a gpu this one is faster
+print(compare_results)
+"""
+Computer - i7-1165G7:
+Model name  Model loss  Model acc  training time
+0  FashionMNISTModelV0    0.476639  83.426518      15.582225
+1  FashionMNISTModelV1    0.685001  75.019968      18.475133
+2  FashionMNISTModelV2    0.320499  88.398562      48.018168
+
+Google colab gpu - tesla t4:
+Model name  Model loss  Model acc  training time
+0  FashionMNISTModelV0    0.471430  83.576278      30.282343
+1  FashionMNISTModelV1    0.685001  75.019968      31.532655
+2  FashionMNISTModelV2    0.320560  88.238818      37.961074
+"""
+# Visualize our model results
+compare_results.set_index('model name')['model acc'].plot(kind='barh')
+plt.xlabel('accuracy (%)')
+plt.ylabel('model')
+# plt.show()
