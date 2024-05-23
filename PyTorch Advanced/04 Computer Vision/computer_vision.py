@@ -17,6 +17,8 @@ from timeit import default_timer as timer
 from tqdm.auto import tqdm
 import pandas as pd
 import random
+from torchmetrics import ConfusionMatrix
+from mlxtend.plotting import plot_confusion_matrix
 print(torch.__version__)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -670,7 +672,158 @@ Model name  Model loss  Model acc  training time
 2  FashionMNISTModelV2    0.320560  88.238818      37.961074
 """
 # Visualize our model results
-compare_results.set_index('model name')['model acc'].plot(kind='barh')
+compare_results.set_index('Model name')['Model acc'].plot(kind='barh')
 plt.xlabel('accuracy (%)')
 plt.ylabel('model')
 # plt.show()
+
+"""
+9. Model and evaluate random predictions with best model
+"""
+def make_predictions(model: torch.nn.Module,
+                     data: list,
+                     device: torch.device = device):
+  pred_probs = []
+  model.eval()
+  with torch.inference_mode():
+    for sample in data:
+      # Prepare the sample
+      sample = torch.unsqueeze(sample, dim=0).to(device)
+
+      # Forward pass (model outputs raw logits)
+      pred_logits = model(sample)
+
+      # Get prediction probability (logit -> prediction probability)
+      pred_prob = torch.softmax(pred_logits.squeeze(), dim=0)
+
+      # Get pred_prob off the GPU for further calculations
+      pred_probs.append(pred_prob.cpu())
+
+  # Stack the pred_probs to turn list into tensor
+  return torch.stack(pred_probs)
+
+# random.seed(42)
+test_samples = []
+test_labels = []
+for sample, label in random.sample(list(test_data), k=9):
+  test_samples.append(sample)
+  test_labels.append(label)
+
+# View the first sample shape
+print(test_samples[0].shape)
+plt.imshow(test_samples[0].squeeze(), cmap='gray')
+plt.title(class_names[test_labels[0]])
+# plt.show()
+# Make predictions
+pred_probs = make_predictions(model=model_2,
+                              data=test_samples)
+# View first two prediction probabilies
+print(pred_probs[:2])
+# Convert prediction probabilities to labels
+pred_classes = pred_probs.argmax(dim=1)
+print(pred_classes)
+
+# Plot predictions
+plt.figure(figsize=(9, 9))
+nrows = 3
+ncols = 3
+for i, sample in enumerate(test_samples):
+    # Create a subplot
+    plt.subplot(nrows, ncols, i+1)
+
+    # Plot the target image
+    plt.imshow(sample.squeeze(), cmap='gray')
+
+    # Find the prediction (in text form, e.g "Sandal")
+    pred_label = class_names[pred_classes[i]]
+
+    # Get the truth label (in text form)
+    truth_label = class_names[test_labels[i]]
+
+    # Create a title for the plot
+    title_text = f'Pred: {pred_label} | Truth: {truth_label}'
+
+    # Check for equality between pred and truth and change color of title text
+    if pred_label == truth_label:
+        plt.title(title_text, fontsize=10, c='g') # green text if prediction same as truth
+    else:
+        plt.title(title_text, fontsize=10, c='r')
+    plt.axis(False)
+
+"""
+10. Making a confusion matrix for further prediction evaluation
+A confusion matrix is a fantastic way of evaluating your classification models visually
+1. Make predictions with our trained model on the test dataset
+2. Make a confusion matrix torchmetrics.ConfusionMatrix
+3. Plot the confusion matrix using mlxtend.plotting.plot_confusion_matrix()
+"""
+# 1. Make predictions with trained model
+y_preds = []
+model_2.eval()
+with torch.inference_mode():
+    for X, y in tqdm(test_dataloader, desc='Making predictions...'):
+        # Send the data and targets to target device
+        X, y = X.to(device), y.to(device)
+        # Do the forward pass
+        y_logit = model_2(X)
+        # Turn predictions from logits -> prediction probabilities -> prediction labels
+        y_pred = torch.softmax(y_logit.squeeze(), dim=0).argmax(dim=1)
+        # Put prediction on CPU for evaluation
+        y_preds.append(y_pred.cpu())
+
+    # Concatenate list of predictions into a tensor
+    # print(y_preds)
+    y_pred_tensor = torch.cat(y_preds)
+    print(y_pred_tensor, len(y_pred_tensor))
+
+
+
+# 2.  Setup confusion instance and compare predictions to targets
+confmat = ConfusionMatrix(num_classes=len(class_names),
+                          task="multiclass")
+confmat_tensor = confmat(preds=y_pred_tensor,
+                         target=test_data.targets)
+# 3. Plot the confusion matrix
+fig, ax = plot_confusion_matrix(conf_mat=confmat_tensor.numpy(), # matplotlib likes numpy
+                                class_names=class_names,
+                                figsize=(10, 7))
+# plt.show()
+
+"""
+11. Save and load best performing model
+"""
+# Create model directory path
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True,
+                 exist_ok=True)
+# Create model save
+MODEL_NAME = 'computer_vision_model_2.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+
+# Save the model state dict
+print(f'Saving model to: {MODEL_SAVE_PATH}')
+torch.save(obj=model_2.state_dict(),
+           f=MODEL_SAVE_PATH)
+
+# Create a new instance
+torch.manual_seed(42)
+loaded_model_2 = FashionMNISTModelV2(input_shape=1,
+                                     hidden_units=10,
+                                     output_shape=len(class_names))
+# Load in the save state_dict()
+loaded_model_2.load_state_dict(torch.load(f=MODEL_SAVE_PATH))
+# Send the model to the target device
+loaded_model_2.to(device)
+
+# Evaluate loaded model
+print(model_2_result)
+torch.manual_seed(42)
+loaded_model_2_result = eval_model(model=loaded_model_2,
+                                 data_loader=test_dataloader,
+                                 loss_fn=loss_fn,
+                                 accuracy_fn=accuracy_fn)
+print(loaded_model_2_result)
+# Check if model results are close to each other
+torch.isclose(torch.tensor(model_2_result['Model loss']),
+              torch.tensor(loaded_model_2_result['Model loss']),
+              atol=1e-02) # we put a margin of error
