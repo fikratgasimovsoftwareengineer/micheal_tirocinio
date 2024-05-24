@@ -95,7 +95,7 @@ for i in range(5):
   # plt.figure(figsize=(3, 3))
   # plt.imshow(img_squeeze, cmap="gray")
   # plt.title(label)
-  #plt.axis(False)
+  # plt.axis(False)
   # plt.show()
 
 """
@@ -347,8 +347,63 @@ plt.show()
 layer with various hyperparameter settings (these can be any settings you choose), 
 what do you notice if the kernel_size parameter goes up and down?
 """
+rand_tensor= torch.rand(1, 3, 64, 64)
+conv_layer = nn.Conv2d(in_channels=3,
+                      out_channels=64,
+                      kernel_size=3,
+                      stride=2,
+                      padding=1)
+output = conv_layer(rand_tensor)
+print(rand_tensor.shape)
+print(conv_layer)
+print(output.shape)
+# The shape of the width and height changes according to the kernel size, higher it is, lower the height and width
 
 """
 13. Use a model similar to the trained model_2 from this notebook to make predictions 
 on the test torchvision.datasets.FashionMNIST dataset.
 """
+test_data = datasets.FashionMNIST(
+    root='/home/michel/Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data',
+    train=False,
+    download=True,
+    transform=ToTensor(),
+    target_transform=None)
+
+class_names = test_data.classes
+
+test_samples = []
+test_labels = []
+for sample, label in random.sample(list(test_data), k=5):
+  test_samples.append(sample)
+  test_labels.append(label)
+
+pred_probs = make_predictions(model=model,
+                              data=test_samples)
+pred_classes = pred_probs.argmax(dim=1)
+plt.figure(figsize=(4, 10))
+nrows = 5
+ncols = 1
+# Then plot some predictions where the model was wrong alongside what the label of the image should've been.
+for i, sample in enumerate(test_samples):
+    plt.subplot(nrows, ncols, i+1)
+    plt.imshow(sample.squeeze(), cmap='gray')
+    pred_label = class_names[pred_classes[i]]
+    truth_label = class_names[test_labels[i]]
+    title_text = f'Pred: {pred_label} | Truth: {truth_label}'
+    if pred_label == truth_label:
+        plt.title(title_text, fontsize=10, c='g')
+    else:
+        plt.title(title_text, fontsize=10, c='r')
+    plt.axis(False)
+plt.show()
+
+# After visualing these predictions do you think it's more of a modelling error or a data error?
+#
+# The model isn't performing well because it wasn't train for recognize images of clothing, it's a modelling error
+
+
+# As in, could the model do better or are the labels of the data too close
+# to each other (e.g. a "Shirt" label is too close to "T-shirt/top")?
+#
+# It could, but it also performs poorly on different types of clothing so is not the case
