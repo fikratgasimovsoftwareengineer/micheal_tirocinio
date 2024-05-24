@@ -6,15 +6,12 @@ See exercises for this notebook here: https://www.learnpytorch.io/03_pytorch_com
 import torch
 from torch import nn
 import torchvision
-from torchvision import datasets, transforms
+from torchvision import datasets
 from torchvision.transforms import ToTensor
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-import requests
-from pathlib import Path
 from timeit import default_timer as timer
 from tqdm.auto import tqdm
-import pandas as pd
 import random
 from torchmetrics import ConfusionMatrix
 from mlxtend.plotting import plot_confusion_matrix
