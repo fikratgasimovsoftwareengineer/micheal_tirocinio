@@ -44,6 +44,10 @@ from torchinfo import summary
 from tqdm.auto import tqdm
 # 7.7
 from timeit import default_timer as timer
+# 10
+import pandas as pd
+# 11.1
+import torchvision.io
 
 # Setup device-agnostic code
 device = "cuda" if torch.cuda.is_available() else 'cpu'
@@ -69,18 +73,15 @@ if image_path.is_dir():
 else:
     print(f"{image_path} doesn't exist, downloading now...")
     image_path.mkdir(parents=True, exist_ok=True)
-
-# Download pizza, steak and sushi data
-with open(data_path / 'pizza_steak_sushi.zip', 'wb') as f:
-    request = requests.get('https://github.com/mrdbourke/pytorch-deep-learning/raw/main/data/pizza_steak_sushi.zip')
-    print('Downloading pizza, steak, sushi data...')
-    f.write(request.content)
-
-# Unzip pizza, steak, sushi data
-with zipfile.ZipFile(data_path / 'pizza_steak_sushi.zip', 'r') as zip_ref:
-    print('Unzipping pizza, steak and sushi data...')
-    zip_ref.extractall(image_path)
-print(image_path)
+    # Download pizza, steak and sushi data
+    with open(data_path / 'pizza_steak_sushi.zip', 'wb') as f:
+        request = requests.get('https://github.com/mrdbourke/pytorch-deep-learning/raw/main/data/pizza_steak_sushi.zip')
+        print('Downloading pizza, steak, sushi data...')
+        f.write(request.content)
+    # Unzip pizza, steak, sushi data
+    with zipfile.ZipFile(data_path / 'pizza_steak_sushi.zip', 'r') as zip_ref:
+        print('Unzipping pizza, steak and sushi data...')
+        zip_ref.extractall(image_path)
 
 """
 2. Becoming one with the data (data preparation and data exploration)
@@ -881,3 +882,211 @@ model_1_results = train(model=model_1,
 end_time = timer()
 total_time = end_time - start_time
 print(f'Total training time: {total_time:.2f} seconds')
+
+"""
+9.4 Plot the loss curves of model 1
+"""
+# plot_loss_curves(model_1_results)
+
+"""
+10. Compare model results
+After evaluating our modelling experiments on their own, it's important
+to compare them to each other
+There's a few different ways to do this:
+1. Hard coding (what we're doing)
+2. Pytorch + Tensorboard - https://pytorch.org/docs/stable/tensorboard.html
+3. Weights & Biases - https://wandb.ai/site/experiment-tracking
+4. MLFlow - https://mlflow.org/
+"""
+model_0_df = pd.DataFrame(model_0_results)
+model_1_df = pd.DataFrame(model_1_results)
+
+# Let's plot both results
+plt.figure(figsize=(15, 10))
+
+# Get number of epochs
+epochs = range(len(model_0_df))
+
+# Plot train loss
+plt.subplot(2, 2, 1)
+plt.plot(epochs, model_0_df['train_loss'], label='Model 0')
+plt.plot(epochs, model_1_df['train_loss'], label='Model 1')
+plt.title('Train loss')
+plt.xlabel('Epochs')
+plt.legend()
+
+# Plot test loss
+plt.subplot(2, 2, 2)
+plt.plot(epochs, model_0_df['test_loss'], label='Model 0')
+plt.plot(epochs, model_1_df['test_loss'], label='Model 1')
+plt.title('Test loss')
+plt.xlabel('Epochs')
+plt.legend()
+
+# Plot train accuracy
+plt.subplot(2, 2, 3)
+plt.plot(epochs, model_0_df['train_acc'], label='Model 0')
+plt.plot(epochs, model_1_df['train_acc'], label='Model 1')
+plt.title('Train accuracy')
+plt.xlabel('Epochs')
+plt.legend()
+
+# Plot test accuracy
+plt.subplot(2, 2, 4)
+plt.plot(epochs, model_0_df['test_acc'], label='Model 0')
+plt.plot(epochs, model_1_df['test_acc'], label='Model 1')
+plt.title('Test accuracy')
+plt.xlabel('Epochs')
+plt.legend()
+plt.show()
+
+"""
+11. Making a prediction on a custom image
+Althrough we've trained a model on custom data... how do you make a prediction
+on a sample/image that's not in either training or testing dataset
+"""
+# Download custom image, setup custom image path
+custom_image_path = data_path / '04-pizza-dad.jpeg'
+
+# Download the image if it doesn't already exist
+if not custom_image_path.is_file():
+    with open(custom_image_path, 'wb') as f:
+        # When downloading from GitHub, need to use the 'raw' file link
+        request = requests.get('https://raw.githubusercontent.com/mrdbourke/pytorch-deep-learning/main/images/04-pizza-dad.jpeg')
+        print(f'Downloading {custom_image_path}...')
+        f.write(request.content)
+else:
+    print(f'Image already downloaded, skipping')
+
+"""
+11.1 Loading in a custom image with pytorch
+We have to make sure our custom image is in the same format as the data our model was trained on
+* In tensor form with datatype (float32)
+* Of shape 64x64x3
+* On the right device
+We can read an image in Pytorch using torchvision.io.read_image
+- check documentation
+"""
+custom_image_uint8 = torchvision.io.read_image(str(custom_image_path))
+print(f'Custom image tensor:\n {custom_image_uint8}')
+print(f'Custom image datatype: {custom_image_uint8.dtype}')
+print(f'Custom image shape: {custom_image_uint8.shape}')
+
+"""
+11.2 Making a prediction on a custom imahe with a trained Pytorch model
+"""
+# Try to make a prediction on an image in uint8 format
+# model_1.eval()
+# with torch.inference_mode():
+#     model_1(custom_image_uint8.to(device)) # RuntimeError for the dtype
+
+# Load in the custom image and convert to torch.float32
+custom_image = torchvision.io.read_image(str(custom_image_path)).type(torch.float32)
+
+# Try to make a prediction on an image in float32 format
+# model_1.eval()
+# with torch.inference_mode():
+#     model_1(custom_image.to(device)) # RuntimeError for the shape
+
+# We need to scale down the values of the pixel by 255
+custom_image = custom_image / 255
+
+# Create transform pipeline to resize image
+custom_image_transform = transforms.Compose([
+    transforms.Resize(size=[64, 64])])
+
+# Transform target image
+custom_image_transformed = custom_image_transform(custom_image)
+
+# Check the shape
+print(f'Original shape: {custom_image.shape}')
+print(f'Transformed shape: {custom_image_transformed.shape}')
+
+# Try to make a prediction on an image in float32 format after trasformation in 64x64
+# model_1.eval()
+# with torch.inference_mode():
+#     model_1(custom_image_transformed.to(device)) # wrong batch size
+
+# ...added batch size
+model_1.eval()
+with torch.inference_mode():
+    custom_image_pred = model_1(custom_image_transformed.unsqueeze(0).to(device))
+print(class_names)
+print(custom_image_pred)
+
+"""
+Note: to make a prediction on a custom image we had to:
+* Load the image and turn it into a tensor
+* Make sure the image was the same dtype as the model (torch.float32)
+* Make sure the image was the same shape as the data the model 
+was trained on (3, 64, 64) and with a batch size... (1, 3, 64, 64)
+* Make sure the image was on the same device as our model
+"""
+# Convert logits -> prediction probabilities
+custom_image_pred_probs = torch.softmax(custom_image_pred, dim=1)
+print(custom_image_pred_probs)
+
+# Convert prediction probabilities -> prediction labels
+custom_image_pred_label = torch.argmax(custom_image_pred_probs, dim=1)
+print(custom_image_pred_label)
+
+"""
+11.3 Putting custom image prediction together: building a function
+Ideal outcome:
+A function where we pass an image path and have our model predict
+on that image and plot the image + prediction
+"""
+def pred_and_plot_image(model: torch.nn.Module,
+                        image_path: str,
+                        class_names: List[str] = None,
+                        transform=None,
+                        device=device):
+    """Makes a prediction on a target image with a trained
+    model and plots the image and predictions"""
+    # Load in the image
+    target_image = torchvision.io.read_image(str(image_path)).type(torch.float32)
+
+    # Divide the image pixel values by 255 to get them between [0, 1]
+    target_image = target_image / 255
+
+    # Transform data if necessary
+    if transform:
+        target_image = transform(target_image)
+
+    # Make sure the model is on the target device
+    model.to(device)
+
+    # Turn on inference mode and make a prediction
+    model.eval()
+    with torch.inference_mode():
+        # Add an extra dimension to the image (this is the batch dimension,
+        # e.g. our model will predict on batches of 1x image)
+        target_image = target_image.unsqueeze(0)
+
+        # Make a prediction on the image with an extra dimension
+        target_image_pred = model(target_image.to(device)) # make sure the target image is on the right device
+
+    # Convert logits to prediction probabilities
+    target_image_pred_probs = torch.softmax(target_image_pred, dim=1)
+
+    # Convert prediction probabilities in prediction labels
+    target_image_pred_label = torch.argmax(target_image_pred_probs, dim=1)
+
+    # Plot the image alongside the prediction and prediction probability
+    plt.imshow(target_image.squeeze().permute(1, 2, 0)) # remove batch dimension and rearrange for HWC
+    if class_names:
+        title = (f'Pred: {class_names[target_image_pred_label.cpu()]} | '
+                 f'Prob: {target_image_pred_probs.max().cpu():.3f}')
+    else:
+        title = (f'Pred: {target_image_pred_label} | '
+                 f'Prob: {target_image_pred_probs.max().cpu():.3f}')
+    plt.title(title)
+    plt.axis(False)
+    plt.show()
+
+# Pred on our custom image
+pred_and_plot_image(model=model_1, # model_0 guesses wrong
+                    image_path=str(custom_image_path),
+                    class_names=class_names,
+                    transform=custom_image_transform,
+                    device=device)
