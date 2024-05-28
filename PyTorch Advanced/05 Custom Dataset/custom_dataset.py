@@ -39,7 +39,6 @@ from typing import Tuple, Dict, List, Any
 # 5.2
 from torch.utils.data import Dataset
 # 7.4
-import torchinfo
 from torchinfo import summary
 # 7.6
 from tqdm.auto import tqdm
@@ -718,7 +717,7 @@ def train(model: torch.nn.Module,
         # 4. Print out what's happening
         print(f'Epoch: {epoch}\n'
               f'Train loss: {train_loss:.4f} Train acc: {train_acc*100:.2f}%\n'
-              f'Test loss: {test_loss:.4f} Train acc: {test_acc*100:.2f}%\n')
+              f'Test loss: {test_loss:.4f} Test acc: {test_acc*100:.2f}%\n')
 
         # 5. Update results dictionary
         results['train_loss'].append(train_loss)
@@ -737,7 +736,7 @@ torch.manual_seed(42)
 torch.cuda.manual_seed(42)
 
 # Set number of epochs
-NUM_EPOCHS = 10
+NUM_EPOCHS = 5
 
 # Recreate and instance of TinyVGG
 model_0 = TinyVGG(input_shape=3, hidden_units=10, output_shape=len(train_data.classes)).to(device)
@@ -758,6 +757,127 @@ model_0_results = train(model=model_0,
                         epochs=NUM_EPOCHS)
 
 # End timer and print out how long it took
+end_time = timer()
+total_time = end_time - start_time
+print(f'Total training time: {total_time:.2f} seconds')
+
+"""
+7.8 Plot the loss curves of model_0
+A loss curve is a way to tracking your model's progress over time
+"""
+# Get model_0 results keys
+print(model_0_results.keys())
+def plot_loss_curves(results: Dict[str, List[float]]):
+    """Plots training curves of a results dictionary"""
+    # Get the loss values of the results dictionary (training and test)
+    loss = results['train_loss']
+    test_loss = results['test_loss']
+
+    # Get the accuracy values of the results dictionary (training and test)
+    accuracy = results['train_acc']
+    test_accuracy = results['test_acc']
+
+    # Figure out how many epochs there were
+    epochs = range(len(results['train_loss']))
+
+    # Setup a plot
+    plt.figure(figsize=(15, 7))
+
+    # Plot the loss
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, loss, label='train_loss')
+    plt.plot(epochs, test_loss, label='test_loss')
+    plt.title('Loss')
+    plt.xlabel('Epochs')
+    plt.legend()
+
+    # Plot accuracy
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, accuracy, label='train_accuracy')
+    plt.plot(epochs, test_accuracy, label='test_accuracy')
+    plt.title('Accuracy')
+    plt.xlabel('Epochs')
+    plt.legend()
+
+    # Plot
+    plt.show()
+
+# plot_loss_curves(model_0_results)
+
+"""
+8. What should and ideal loss curve look like?
+https://developers.google.com/machine-learning/testing-debugging/metrics/interpretic
+A loss curve is one of the most helpful ways to troubleshoot a model
+
+
+
+9. Model 1: TinyVGG with Data Augmentation
+Now let's try another modelling experiment this time using the 
+same model as before with some data augmentatation
+
+
+
+9.1 Create transform with data augmentation
+"""
+# Create training transform with TrivialAugment
+train_transform_trivial = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.TrivialAugmentWide(num_magnitude_bins=31),
+    transforms.ToTensor()])
+test_transform_simple = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.ToTensor()])
+
+"""
+9.2 Create train and test Dataset and Dataloader with data augmentation
+"""
+# Turn image folders into Datasets
+train_data_augmented = datasets.ImageFolder(root=str(train_dir),
+                                            transform=train_transform_trivial)
+train_data_simple = datasets.ImageFolder(root=str(test_dir),
+                                            transform=test_transform_simple)
+
+# Turn our datasets into dataloaders
+BATCH_SIZE = 32
+NUM_WORKERS = os.cpu_count()
+torch.manual_seed(42)
+train_dataloader_augmented = DataLoader(dataset=train_data_augmented,
+                                        batch_size=BATCH_SIZE,
+                                        shuffle=True,
+                                        num_workers=NUM_WORKERS)
+test_dataloader_simple = DataLoader(dataset=test_data_simple,
+                                    batch_size=BATCH_SIZE,
+                                    shuffle=False,
+                                    num_workers=NUM_WORKERS)
+
+"""
+9.3 Construct and train model 1
+This time we'll be using the same model architecture 
+except this time we've augmented the training data
+"""
+# Create model_1 and send it to the target device
+torch.manual_seed(42)
+model_1 = TinyVGG(3, 10, len(train_data_augmented.classes)).to(device)
+
+# Let's create a loss function and optimizer and pass it to the train() function
+# Set manual seed, epochs, loss_fn, optimizer and timer
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+NUM_EPOCHS = 5
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(params=model_1.parameters(), lr=0.001)
+start_time = timer()
+
+# Train model 1
+model_1_results = train(model=model_1,
+                        train_dataloader=train_dataloader_augmented,
+                        test_dataloader=test_dataloader_simple,
+                        optimizer=optimizer,
+                        loss_fn=loss_fn,
+                        epochs=NUM_EPOCHS,
+                        device=device)
+
+# Calculate the time
 end_time = timer()
 total_time = end_time - start_time
 print(f'Total training time: {total_time:.2f} seconds')
