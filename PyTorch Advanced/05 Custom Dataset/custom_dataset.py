@@ -16,7 +16,7 @@ Resources:
 0. Importing Pytorch and setting up device-agnostic code
 """
 import torch
-# from torch import nn
+from torch import nn
 # 1.
 import requests
 import zipfile
@@ -38,6 +38,13 @@ from torch.utils.data import DataLoader
 from typing import Tuple, Dict, List, Any
 # 5.2
 from torch.utils.data import Dataset
+# 7.4
+import torchinfo
+from torchinfo import summary
+# 7.6
+from tqdm.auto import tqdm
+# 7.7
+from timeit import default_timer as timer
 
 # Setup device-agnostic code
 device = "cuda" if torch.cuda.is_available() else 'cpu'
@@ -437,16 +444,10 @@ def display_random_images(dataset: torch.utils.data.Dataset,
     plt.show()
 
 # Display random images from the ImageFolder created Dataset
-display_random_images(train_data,
-                      n=5,
-                      classes=class_names,
-                      seed=None)
+# display_random_images(train_data, n=5, classes=class_names, seed=None)
 
 # Display random images from the ImageFolderCustom Dataset
-display_random_images(train_data_custom,
-                      n=20,
-                      classes=class_names,
-                      seed=None)
+# display_random_images(train_data_custom, n=20, classes=class_names, seed=None)
 
 """
 5.4 Turn custom loaded images into DataLoader
@@ -468,3 +469,295 @@ img_custom, label_custom = next(iter(train_dataloader_custom))
 
 # Print out the shapes
 print(img_custom.shape, label_custom.shape)
+
+"""
+6. Other forms of transforms (data augmentation)
+Data augmentation is the preocsess of artificially adding diversity to our training data
+In the case of image data, this may mean applying various image transformations to the training images
+This practice hopefully result
+Let's take a look at one particular type of data augmentation used to
+train Pytorch vision models to state of the art levels...
+"""
+# Let's look at trivial augment - check documentation
+train_transform = transforms.Compose([
+    transforms.Resize(size=(224, 224)),
+    transforms.TrivialAugmentWide(num_magnitude_bins=31),
+    transforms.ToTensor()])
+test_transform = transforms.Compose([
+    transforms.Resize(size=(224, 224)),
+    transforms.ToTensor()])
+
+# Get all image paths
+image_path_list = list(image_path.glob('*/*/*.jpg'))
+
+# Plot random transformed images
+# plot_transformed_images(image_paths=image_path_list, transform=train_transform, n=3, seed=None)
+
+"""
+7. Model 0: TinyVGG without data augmentation
+Let's replicate the TinyVGG architecture from the CNN Expliner website:
+https://poloclub.github.io/cnn-explainer/
+
+
+
+7.1 Creating transforms and loading data for model 0
+"""
+# Create simple transform
+simple_transform = transforms.Compose([
+    transforms.Resize(size=(64, 64)),
+    transforms.ToTensor()])
+
+# 1. Load and transform data
+train_data_simple = datasets.ImageFolder(root=str(train_dir),
+                                         transform=simple_transform)
+test_data_simple = datasets.ImageFolder(root=str(test_dir),
+                                        transform=simple_transform)
+
+# 2. Turn the datasets into DatLoaders
+# Setup batch size and number of works
+BATCH_SIZE = 32
+NUM_WORKERS = os.cpu_count()
+
+# Create DataLoader
+train_dataloader_simple = DataLoader(dataset=train_data_simple,
+                                     batch_size=BATCH_SIZE,
+                                     shuffle=True,
+                                     num_workers=NUM_WORKERS)
+test_dataloader_simple = DataLoader(dataset=test_data_simple,
+                                     batch_size=BATCH_SIZE,
+                                     shuffle=False,
+                                     num_workers=NUM_WORKERS)
+
+"""
+7.2 Create TinyVGG model class
+"""
+class TinyVGG(nn.Module):
+    """
+    Model architecture that replicates the TinyVGG
+    model from CNN explainer website
+    """
+    def __init__(self, input_shape: int,
+                 hidden_units: int,
+                 output_shape: int) -> None:
+        super().__init__()
+        #  Create a convolutional block
+        self.conv_block_1 = nn.Sequential(
+            nn.Conv2d(in_channels=input_shape,
+                      out_channels=hidden_units,
+                      kernel_size=3,
+                      stride=1, # stride 1 removes 2 pixels from the image
+                      padding=0),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=hidden_units,
+                      out_channels=hidden_units,
+                      kernel_size=3,
+                      stride=1,
+                      padding=0),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2,
+                         stride=2)) # default is same like kernel_size
+        self.conv_block_2 = nn.Sequential(
+            nn.Conv2d(in_channels=hidden_units,
+                      out_channels=hidden_units,
+                      kernel_size=3,
+                      stride=1,
+                      padding=0),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=hidden_units,
+                      out_channels=hidden_units,
+                      kernel_size=3,
+                      stride=1,
+                      padding=0),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, # max pool of 2 halves the pixel in the image
+                         stride=2))
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            # check output shape of conv_block_2, or use torchinfo
+            nn.Linear(in_features=hidden_units*13*13,
+                      out_features=output_shape))
+
+    def forward(self, x):
+        # Benefits from operator fusion, aka speeds up gpu performance
+        # https://horace.io/brrr_intro.html
+        return self.classifier(self.conv_block_2(self.conv_block_1(x)))
+
+torch.manual_seed(42)
+model_0 = TinyVGG(3, 10, len(class_names)).to(device)
+print(model_0)
+
+"""
+7.3 Try a forward pass on a single image (to test the model)
+"""
+image_batch, label_batch = next(iter(train_dataloader_simple))
+print(image_batch.shape, label_batch.shape)
+
+# Try forward pass
+model_0(image_batch)
+
+"""
+7.4 Use torchinfo to get an idea of the shapes going through our model
+"""
+summary(model_0, input_size=[1, 3, 64, 64])
+
+"""
+7.5 Create train and test loops functions
+* train_step - takes a model and dataloader and trains on it
+* test_step - takes a model and dataloader and evaluates on it
+"""
+def train_step_no_acc_fn(model: torch.nn.Module,
+               data_loader: torch.utils.data.DataLoader,
+               loss_fn: torch.nn.Module,
+               optimizer: torch.optim.Optimizer,
+               # accuracy_fn,
+               device: torch.device = device):
+    """Performs a training with model trying to learn on data_loader.
+    This version doesn't take an accuracy function as parameter.
+    It also returns train loss and accuracy"""
+    train_loss, train_acc = 0, 0
+    # Put the model into training mode
+    model.train()
+    # Add a loop to through the training batches
+    for batch, (X, y) in enumerate(data_loader):
+        # Put data on target device
+        X, y = X.to(device), y.to(device)
+
+        # 1. Forward pass (outputs the raw logits from the model)
+        y_pred = model(X)
+
+        # 2. Calculate loss and accuracy (per batch)
+        loss = loss_fn(y_pred, y)
+        train_loss += loss.item() # accumulate train loss
+        # train_acc += accuracy_fn(y_true=y,
+        #                         y_pred=y_pred.argmax(dim=1)) # from logits to prediction labels
+
+        # 3. Optimizer zero grad
+        optimizer.zero_grad()
+
+        # 4. Loss backward
+        loss.backward()
+
+        # 5.Optimizer step
+        optimizer.step()
+
+        # Calculate accuracy metric (without pre-built function)
+        y_pred_class = torch.argmax(torch.softmax(y_pred, dim=1), dim=1)
+        train_acc += (y_pred_class==y).sum().item()/len(y_pred)
+
+    # Divide total train loss and acc by lenght of train dataloader
+    train_loss /= len(data_loader)
+    train_acc /= len(data_loader)
+    return train_loss, train_acc
+
+def test_step_no_acc_fn(model: torch.nn.Module,
+             data_loader: torch.utils.data.DataLoader,
+             loss_fn: torch.nn.Module,
+             # accuracy_fn,
+             device: torch.device = device):
+    """Performs a testing loop step on model going over data_loader
+    This version doesn't take an accuracy function as parameter.
+    It also returns test loss and accuracy"""
+    test_loss, test_acc = 0, 0
+    # Put the model in eval mode
+    model.eval()
+    # Turn on inference mode context manager
+    with torch.inference_mode():
+        for X, y in data_loader:
+            # Send the data to target device
+            X, y = X.to(device), y.to(device)
+
+            # 1. Forward pass
+            test_pred = model(X)
+
+            # 2. Calculate the loss/acc
+            test_loss += loss_fn(test_pred, y).item()
+            # test_acc += accuracy_fn(y_true=y,
+            #                         y_pred=test_pred.argmax(dim=1)) # from logits to prediction labels
+
+            # Calculate the accuracy
+            test_pred_labels = test_pred.argmax(dim=1)
+            test_acc += (test_pred_labels==y).sum().item()/len(test_pred_labels)
+
+        # Adjust metrics and print out
+        test_loss /= len(data_loader)
+        test_acc /= len(data_loader)
+        return test_loss, test_acc
+
+"""
+7.6 Creating a train function to combine train_step and test_step
+"""
+# 1. Create a train function that takes in various model parameters + optimizer + dataloader
+def train(model: torch.nn.Module,
+          train_dataloader,
+          test_dataloader,
+          optimizer,
+          loss_fn: torch.nn.Module = nn.CrossEntropyLoss(),
+          epochs: int = 5,
+          device=device):
+    """Performs training and evaluation of a model if given
+    a train and test function"""
+
+    # 2. Create empty results dictionary
+    results = {'train_loss': [],
+               'train_acc':  [],
+               'test_loss': [],
+               'test_acc': []}
+
+    # 3. Loop through training and testing steps for a number of epochs
+    for epoch in tqdm(range(epochs)):
+        train_loss, train_acc = train_step_no_acc_fn(model=model,
+                                                     data_loader=train_dataloader,
+                                                     loss_fn=loss_fn,
+                                                     optimizer=optimizer,
+                                                     device=device)
+        test_loss, test_acc = test_step_no_acc_fn(model=model,
+                                                     data_loader=test_dataloader,
+                                                     loss_fn=loss_fn,
+                                                     device=device)
+
+        # 4. Print out what's happening
+        print(f'Epoch: {epoch}\n'
+              f'Train loss: {train_loss:.4f} Train acc: {train_acc*100:.2f}%\n'
+              f'Test loss: {test_loss:.4f} Train acc: {test_acc*100:.2f}%\n')
+
+        # 5. Update results dictionary
+        results['train_loss'].append(train_loss)
+        results['train_acc'].append(train_acc)
+        results['test_loss'].append(test_loss)
+        results['test_acc'].append(test_acc)
+
+    # 6. Return the filled results at the end of the epochs
+    return results
+
+"""
+7.7 Train and evaluate
+"""
+# Set random seeds
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+
+# Set number of epochs
+NUM_EPOCHS = 10
+
+# Recreate and instance of TinyVGG
+model_0 = TinyVGG(input_shape=3, hidden_units=10, output_shape=len(train_data.classes)).to(device)
+
+# Setup loss function and optimizer
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(params=model_0.parameters(), lr=0.001)
+
+# Start the timer
+start_time = timer()
+
+# Train model_0
+model_0_results = train(model=model_0,
+                        train_dataloader=train_dataloader_simple,
+                        test_dataloader=test_dataloader_simple,
+                        optimizer=optimizer,
+                        loss_fn=loss_fn,
+                        epochs=NUM_EPOCHS)
+
+# End timer and print out how long it took
+end_time = timer()
+total_time = end_time - start_time
+print(f'Total training time: {total_time:.2f} seconds')
