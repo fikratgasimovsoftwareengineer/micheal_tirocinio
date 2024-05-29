@@ -336,6 +336,17 @@ model_0_result = eval_model(model=model_0,
                             device=device)
 print(model_0_result)
 
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'computer_vision_model_0.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state dict
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(obj=model_0.state_dict(),
+           f=MODEL_SAVE_PATH)
+
 """
 6. Model 1: Building a better model with non-linearity
 CHECK IF USING A GPU WITH GOOGLE COLAB IS FASTER
@@ -486,6 +497,17 @@ model_1_result = eval_model(model=model_1,
                             accuracy_fn=accuracy_fn,
                             device=device)
 print(model_1_result, total_train_time_model_1)
+
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'computer_vision_model_1.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state dict
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(obj=model_1.state_dict(),
+           f=MODEL_SAVE_PATH)
 
 """
 Model 2: Building a Convolutional Neural Network (CNN)

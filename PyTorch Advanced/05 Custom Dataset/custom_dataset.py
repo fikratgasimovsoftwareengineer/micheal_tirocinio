@@ -805,6 +805,17 @@ def plot_loss_curves(results: Dict[str, List[float]]):
 
 # plot_loss_curves(model_0_results)
 
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'custom_dataset_model_0.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state dict
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(obj=model_0.state_dict(),
+           f=MODEL_SAVE_PATH)
+
 """
 8. What should and ideal loss curve look like?
 https://developers.google.com/machine-learning/testing-debugging/metrics/interpretic
@@ -1090,3 +1101,14 @@ pred_and_plot_image(model=model_1, # model_0 guesses wrong
                     class_names=class_names,
                     transform=custom_image_transform,
                     device=device)
+
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'custom_dataset_model_1.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state dict
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(obj=model_1.state_dict(),
+           f=MODEL_SAVE_PATH)

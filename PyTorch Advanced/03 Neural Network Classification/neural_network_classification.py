@@ -280,6 +280,16 @@ plt.title('Test')
 plot_decision_boundary(model_0, X_test, y_test)
 # plt.show()
 """
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'nn_classification_model_0.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state dict
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(obj=model_0.state_dict(),
+           f=MODEL_SAVE_PATH)
 """
 5. Improve a model (from a model perspective)
 * Add more layers - give the model more chances to learn about patterns in the data
@@ -378,6 +388,16 @@ plt.title('Test')
 plot_decision_boundary(model_1, X_test, y_test)
 # plt.show()
 """
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'nn_classification_model_1.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state dict
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(obj=model_1.state_dict(),
+           f=MODEL_SAVE_PATH)
 """
 5.1 Preparing data to see if our model can fit a straight line
 One way to troubleshoot to a larger problem is to test out a smaller problem
@@ -588,6 +608,16 @@ plt.title('Test model 3')
 plot_decision_boundary(model_3, X_test, y_test) # model_3 = HAS non-linearity
 plt.show()
 """
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'nn_classification_model_3.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state dict
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(obj=model_3.state_dict(),
+           f=MODEL_SAVE_PATH)
 """
 7. Replicating non-linear activation function
 Neural networks, rather than us telling the model what to learn,
@@ -799,6 +829,17 @@ plt.subplot(1, 2, 2)
 plt.title('Test')
 plot_decision_boundary(model_4, X_blob_test, y_blob_test)
 plt.show()
+
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'nn_classification_model_4.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state dict
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(obj=model_4.state_dict(),
+           f=MODEL_SAVE_PATH)
 
 """
 9. A few more classification metrics (to evaluate our classification model)
