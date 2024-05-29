@@ -15,13 +15,19 @@ from torch import nn
 from torchvision import transforms
 from torchinfo import summary
 import matplotlib.pyplot as plt
-# Import python files with useful functions
-import data_setup
-import engine
 import os
 import requests
 import zipfile
 from pathlib import Path
+from timeit import default_timer as timer
+from typing import List, Tuple
+from PIL import Image
+import random
+# Import python files with useful functions
+import data_setup
+import engine
+from helper_functions import plot_loss_curves
+
 
 # Setup device agnostic code
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -103,10 +109,10 @@ auto_transforms = weights.transforms()
 print(auto_transforms)
 
 # Create Dataloaders usign automatic transform
-train_dataloader, test_dataloader, class_names = data_setup.create_dataloaders(train_dir=str(train_dir),
-                                                                               test_dir=str(test_dir),
-                                                                               transform=auto_transforms,
-                                                                               batch_size=32)
+# train_dataloader, test_dataloader, class_names = data_setup.create_dataloaders(train_dir=str(train_dir),
+#                                                                                test_dir=str(test_dir),
+#                                                                                transform=auto_transforms,
+#                                                                                batch_size=32)
 # print(train_dataloader, test_dataloader, class_names)
 
 """
@@ -179,3 +185,174 @@ model.classifier = nn.Sequential(
     nn.Linear(in_features=1280, # feature vector coming in
               out_features=len(class_names))) # how many classes do we have (3)
 print(model.classifier)
+
+"""
+4. Train model
+"""
+# Define loss and optimizer
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), 0.001)
+
+# Set manual seed
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+
+# Start the timer
+start_time = timer()
+
+# Setup training and save the results
+results = engine.train(model=model,
+                       train_dataloader=train_dataloader,
+                       test_dataloader=test_dataloader,
+                       optimizer=optimizer,
+                       loss_fn=loss_fn,
+                       epochs=5, # it stabilize around 5 epochs
+                       device=device)
+
+# Calculate total time
+end_time = timer()
+total_time = end_time - start_time
+# On CPU the model is slow, should pass it on the GPU
+print(f'Training took: {total_time:.2f} seconds')
+
+"""
+5. Evaluate model by plotting loss curves
+"""
+# For use some pre-build functions
+try:
+    from helper_functions import plot_loss_curves
+except:
+    print(f"Couldn't find helper functions.py, downloading...")
+    with open('helper_functions.py', 'wb') as f:
+        import requests
+        request = requests.get('https://raw.githubusercontent.com/mrdbourke/pytorch-deep-learning/main/helper_functions.py')
+        f.write(request.content)
+    from helper_functions import plot_loss_curves
+
+# Plot the loss curves of our model
+# plot_loss_curves(results)
+
+"""
+6. Make predictions on images from the test set
+Some things to keep in mind when making predictions/inference on test
+data/custom data
+We have to make sure that our test/custom data is:
+* Same shape - images need to be same shape as model was trained on
+* Same datatype - custom data should be on the same datatype
+* Same device - data/custom data should be on the same device as model
+* Same transform - if you've transformed your custom data, ideally you
+will transform the test data and custom data the same
+
+To do all of this automatically, let's call the function pred_and_plot_image
+1. Take in a trained model, a list of class names, a filepath to a target image,
+an image size, a transform and a target device
+2. Open the image with PIL.Image.Open()
+3. Create a transform if one doesn't exist
+4. Make sure the model is on the target device
+5. Turn the model to model.eval() mode to make sure it's ready for inference
+(this will turn off things like nn.Dropout())
+6. Transform the target image and make sure its dimensionality is suited for the
+model (this mainly relates to batch size)
+7. Make prediction on the image by passing to the model
+8. Convert the model's output logits to prediction probabilities using
+torch.softmax()
+9. Convert model's prediction probabilities to prediction labels using
+torch.argmax()
+10. Plot the image with matplotlib and set the title to the prediction
+label from step 9 and prediction probability from step 8
+"""
+# 1. Take in a trained model
+def pred_and_plot_image(model: torch.nn.Module,
+                        image_path: str,
+                        class_names: List[str],
+                        image_size: Tuple[int, int] = (224, 224),
+                        transform: torchvision.transforms = None,
+                        device: torch.device=device):
+    # 2. Open the image with PIL
+    img = Image.open(image_path)
+
+    # 3. Create a transform if one doesn't exist
+    if transform is not None:
+        image_transform = transform
+    else:
+        image_transform = transforms.Compose([
+            transforms.Resize(image_size),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])])
+
+    # Predict on image #
+    # 4. Make sure the model is on the target device
+    model.to(device)
+
+    # 5. Turn on inference mode and eval mode
+    model.eval()
+    with torch.inference_mode():
+        # 6. Transform the image and add an extra batch dimension
+        transformed_image = image_transform(img).unsqueeze(dim=0) # BS, C, H, W
+
+        # 7. Make a prediction on the transformed image by passing it to the model
+        # also pass it on the same device
+        target_image_pred = model(transformed_image.to(device))
+
+    # 8. Convert the model's output logits to pred probs
+    target_image_pred_probs = torch.softmax(target_image_pred, dim=1)
+
+    # 9. Convert the model's pred probs to pred labels
+    target_image_pred_label = torch.argmax(target_image_pred_probs, dim=1)
+
+    # 10. Plot image with predicted label and probability
+    plt.figure()
+    plt.imshow(img)
+    plt.title(f'Pred: {class_names[target_image_pred_label]} | '
+              f'Prob: {target_image_pred_probs.max():.3f}')
+    plt.axis(False)
+    plt.show()
+
+# Get a random list of image paths from the test set
+num_images_to_plot = 5
+test_image_path_list = list(Path(test_dir).glob('*/*.jpg'))
+test_image_path_sample = random.sample(population=test_image_path_list,
+                                       k=num_images_to_plot)
+
+# Make prediction on and plot images
+for image_path in test_image_path_sample:
+    pred_and_plot_image(model=model,
+                        image_path=image_path,
+                        class_names=class_names,
+                        image_size=(224, 224))
+
+"""
+6.1 Making preditions on a custom image
+Let's make a prediction on pizza dad image
+"""
+# Download custom image, setup custom image path
+custom_image = '04-pizza-dad.jpeg'
+custom_image_path = data_path / custom_image
+
+# Download the image if it doesn't already exist
+if not custom_image_path.is_file():
+    with open(custom_image_path, 'wb') as f:
+        # When downloading from GitHub, need to use the 'raw' file link
+        request = requests.get('https://raw.githubusercontent.com/mrdbourke/pytorch-deep-learning/main/images/04-pizza-dad.jpeg')
+        print(f'Downloading {custom_image}...')
+        f.write(request.content)
+else:
+    print(f'Image already downloaded, skipping')
+
+# Make the predition on our custom image
+pred_and_plot_image(model=model,
+                    image_path=str(custom_image_path),
+                    class_names=class_names,
+                    image_size=(224, 224))
+
+# 1. Create models directory
+MODEL_PATH = Path('/home/michel/models')
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+# 2. Create model save path
+MODEL_NAME = 'transfer_learning_model.pt'
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+# 3. Save the model state dict
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(obj=model.state_dict(),
+           f=MODEL_SAVE_PATH)
