@@ -37,7 +37,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 We need our pizza, steak, sushi data to build a transfer learning model on
 """
 # Setup path to a data folder
-data_path = Path('/home/michel/Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data')
+data_path = Path('/home/michel/datasets')
 image_path = data_path / 'pizza_steak_sushi'
 
 # If the image folder doesn't exist, download it and prepare it...

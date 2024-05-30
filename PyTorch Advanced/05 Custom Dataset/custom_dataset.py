@@ -64,7 +64,7 @@ and then increase the scale when necessary.
 The whole point is to speed up how fast you can experiment
 """
 # Setup path to a data folder
-data_path = Path('/home/michel/Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data')
+data_path = Path('/home/michel/datasets')
 image_path = data_path / 'pizza_steak_sushi'
 
 # If the image folder doesn't exist, download it and prepare it...

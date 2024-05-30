@@ -39,14 +39,14 @@ The dataset we'll be using is FashionMNIST from torchvision.datasets
 """
 # Setup training data
 train_data = datasets.FashionMNIST(
-    root='/home/michel/Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data', # where to download data to?
+    root='/home/michel/datasets', # where to download data to?
     train=True, # do we want the training set?
     download=True, # do we want to download yes/no?
     transform=torchvision.transforms.ToTensor(), # how do we want to transform the data?
     target_transform=None) # how do we want to transform the labels/targets?
 
 test_data = datasets.FashionMNIST(
-root='/home/michel/Desktop/TopNetwork/08: PyTorch/PYTORCH_NOTEBOOKS/Data',
+root='/home/michel/datasets',
     train=False, # do we want the test set?
     download=True,
     transform=ToTensor(),
