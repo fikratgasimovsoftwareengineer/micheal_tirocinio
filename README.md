@@ -41,7 +41,7 @@ Nella cartella ci sono file jupyter consegnati dal professore per ciascuna
 sessione del corso.
 Per vedere i modelli creati durante il corso controllare drive.
 
-### PyTorch Advanced - IN CORSO
+### PyTorch Advanced
 Cartella contenente gli appunti presi durante il corso avanzato di PyTorch.
 Sono presenti cartelle che suddividono gli argomenti del corso.
 I file python presenti nella cartella sono appunti presi durante le lezioni,
